@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bungalow Draft Assistant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1208; min-height: 100vh; color: #f0e8dc; }
+
+  .header { background: #0d0902; border-bottom: 1px solid #3d2e1a; padding: 14px 24px; display: flex; align-items: center; gap: 12px; }
+  .header-logo { font-size: 20px; color: #c9a96e; font-style: italic; font-weight: 700; letter-spacing: 0.03em; }
+  .header-sub { font-size: 13px; color: #6b5540; font-weight: 400; }
+  .header-status { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 13px; color: #6b5540; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #3d2e1a; }
+  .dot.connected { background: #6dbf8a; }
+  .refresh-btn { padding: 5px 14px; border: 1px solid #3d2e1a; border-radius: 6px; background: transparent; color: #c9a96e; font-size: 12px; cursor: pointer; font-weight: 500; transition: all 0.15s; }
+  .refresh-btn:hover { background: #3d2e1a; color: #f0e8dc; }
+
+  .app { display: flex; height: calc(100vh - 53px); }
+
+  /* Sidebar */
+  .sidebar { width: 280px; background: #0d0902; border-right: 1px solid #2a1f10; display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-header { padding: 14px 16px; border-bottom: 1px solid #2a1f10; }
+  .sidebar-title { font-size: 10px; font-weight: 700; color: #6b5540; text-transform: uppercase; letter-spacing: 0.1em; }
+  .email-list { flex: 1; overflow-y: auto; }
+  .email-list::-webkit-scrollbar { width: 4px; }
+  .email-list::-webkit-scrollbar-track { background: #0d0902; }
+  .email-list::-webkit-scrollbar-thumb { background: #2a1f10; border-radius: 2px; }
+  .email-item { padding: 12px 16px; border-bottom: 1px solid #1a1208; cursor: pointer; transition: background 0.1s; }
+  .email-item:hover { background: #1a1208; }
+  .email-item.active { background: #1f1609; border-left: 3px solid #c9a96e; }
+  .email-sender { font-size: 13px; font-weight: 600; color: #e8d5b5; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .email-subject { font-size: 11px; color: #8a7055; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+  .email-preview { font-size: 11px; color: #5a4535; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .unread-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #c9a96e; margin-right: 6px; vertical-align: middle; flex-shrink: 0; }
+
+  /* Main */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #1a1208; }
+  .main-content { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .main-content::-webkit-scrollbar { width: 4px; }
+  .main-content::-webkit-scrollbar-track { background: #1a1208; }
+  .main-content::-webkit-scrollbar-thumb { background: #2a1f10; border-radius: 2px; }
+
+  .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #3d2e1a; gap: 12px; }
+  .empty-icon { font-size: 40px; opacity: 0.4; }
+  .empty p { font-size: 14px; color: #4a3825; }
+
+  /* Thread */
+  .thread-label { font-size: 10px; font-weight: 700; color: #6b5540; text-transform: uppercase; letter-spacing: 0.1em; padding: 4px 0; }
+  .thread-message { border: 1px solid #2a1f10; border-radius: 10px; overflow: hidden; margin-bottom: 8px; }
+  .thread-msg-header { padding: 10px 14px; background: #0d0902; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a1f10; }
+  .thread-msg-from { font-size: 12px; font-weight: 600; color: #c9a96e; }
+  .thread-msg-from.bungalow { color: #6dbf8a; }
+  .thread-msg-time { font-size: 11px; color: #4a3825; }
+  .thread-msg-body { padding: 12px 14px; font-size: 13px; color: #a08060; line-height: 1.65; white-space: pre-wrap; max-height: 120px; overflow-y: auto; }
+  .thread-msg-body.latest { max-height: none; color: #e8d5b5; }
+
+  /* Generate button */
+  .gen-btn { padding: 12px; background: #c9a96e; color: #0d0902; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; width: 100%; letter-spacing: 0.02em; transition: background 0.15s; }
+  .gen-btn:hover { background: #dbbe88; }
+  .gen-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Draft */
+  .draft-card { background: #0d0902; border: 1px solid #3d2e1a; border-radius: 10px; overflow: hidden; }
+  .draft-top { padding: 11px 16px; border-bottom: 1px solid #2a1f10; display: flex; align-items: center; justify-content: space-between; }
+  .draft-lbl { font-size: 11px; font-weight: 700; color: #c9a96e; text-transform: uppercase; letter-spacing: 0.08em; }
+  .draft-badge { background: #2a1f10; color: #8a7055; font-size: 10px; padding: 2px 8px; border-radius: 20px; margin-left: 8px; font-weight: 600; }
+  .btn-row { display: flex; gap: 8px; }
+  .sm-btn { padding: 5px 12px; border: 1px solid #3d2e1a; border-radius: 6px; background: transparent; color: #8a7055; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .sm-btn:hover { background: #2a1f10; color: #c9a96e; }
+  .draft-text { padding: 16px; font-size: 13px; color: #e8d5b5; line-height: 1.75; white-space: pre-wrap; outline: none; min-height: 160px; }
+  .draft-text:focus { background: #110b03; }
+
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(13,9,2,0.4); border-top-color: #0d0902; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #c9a96e; color: #0d0902; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .err { color: #e07070; font-size: 13px; padding: 12px; background: #1f0a0a; border-radius: 8px; border: 1px solid #3d1515; }
+  .loading-msg { padding: 20px 16px; font-size: 12px; color: #4a3825; text-align: center; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-logo">Bungalow</div>
+  <div class="header-sub">Draft Assistant</div>
+  <div class="header-status">
+    <span class="dot" id="dot"></span>
+    <span id="statusLabel">Connecting...</span>
+    <button class="refresh-btn" onclick="loadEmails()">↻ Refresh</button>
+  </div>
+</div>
+<div class="app">
+  <div class="sidebar">
+    <div class="sidebar-header"><div class="sidebar-title">Inbox — info@bungalowny.com</div></div>
+    <div class="email-list" id="emailList">
+      <div class="loading-msg">Loading inbox...</div>
+    </div>
+  </div>
+  <div class="main">
+    <div class="main-content" id="main">
+      <div class="empty">
+        <div class="empty-icon">✉</div>
+        <p>Select an email to view the thread and generate a draft reply</p>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast">Copied to clipboard</div>
+
+<script>
+const SYSTEM_PROMPT = `You are an email assistant for Bungalow, a refined Indian restaurant in NYC by Chef Vikas Khanna. Draft professional, warm, and confident replies to guest emails.
+
+CRITICAL RULES:
+- Read the FULL conversation thread carefully before drafting. Do not ask for information that has already been provided in the thread.
+- If the latest message is just a "thank you", "noted", "ok", or a simple acknowledgment with no question or action needed, respond with ONLY this exact text: NO_REPLY_NEEDED
+- Keep replies concise — 3-4 sentences max for simple requests, slightly more for complex ones.
+- Never repeat Resy instructions if they have already been given in the same thread.
+- Never use markdown formatting like **bold** or bullet points in the reply.
+
+KEY POLICIES:
+RESERVATIONS: All reservations for parties under 8 must be made exclusively through Resy. Opens 20 days in advance at 11 AM EST, except Tuesdays.
+WALK-INS: Guests are welcome to visit before 4:30 PM and we will do our best to accommodate walk-ins based on availability.
+NO AVAILABILITY: Redirect to Resy and mention walk-ins before 4:30 PM. Suggest GUPSHUP at 212-518-7313 if needed. Do not be overly apologetic.
+LARGE PARTIES 8-18: Prix fixe menu served family style. $25 per person non-refundable deposit. Confirm headcount, menu, and payment to lock in. Invoice valid 48 hours. No strollers or high chairs.
+OVER 18 GUESTS: Full restaurant buyout required. Partial buyouts in the skylight area.
+CHEF VIKAS: Often present but availability varies due to scheduling and travel.
+JAIN FOOD: Apps: Purple Sweet Potato Chaat, Banarsi Puri, Stuffed Achari Paneer. Mains: Paneer Butter Masala, Roasted Pineapple, Stuffed Okra. Sides: Steamed Rice, Farmer Sattu Roti, Plain Roti.
+CORKAGE: $50 per 750ml, max 2 bottles.
+CHILDREN: Welcome but adult environment. No strollers or high chairs. Child included in guest count.
+GIFT CARDS: Available at bungalowny.com. Does not guarantee a reservation.
+BUYOUT: $65,000 + taxes + 20% gratuity + 5% admin fee. 6-9pm. Room rental $20,000 included.
+LUNCH: Bungalow does not serve lunch, dinner only.
+
+TONE: Warm, direct, confident. Open with "Thank you for your email and for thinking of dining with us at Bungalow." Sign off: The Bungalow Team. Do not invent details not listed above.`;
+
+let accessToken = null;
+let tokenExpiry = 0;
+let selected = null;
+
+async function getToken() {
+  if (accessToken && Date.now() < tokenExpiry - 60000) return accessToken;
+  const res = await fetch('/api/token', { method: 'POST' });
+  const data = await res.json();
+  if (!data.access_token) throw new Error('Token refresh failed');
+  accessToken = data.access_token;
+  tokenExpiry = Date.now() + data.expires_in * 1000;
+  return accessToken;
+}
+
+async function loadEmails() {
+  const listEl = document.getElementById('emailList');
+  listEl.innerHTML = '<div class="loading-msg">Loading inbox...</div>';
+  try {
+    const token = await getToken();
+    const res = await fetch('/api/emails', { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    if (!data.messages?.length) { listEl.innerHTML = '<div class="loading-msg">No emails found</div>'; return; }
+    document.getElementById('dot').className = 'dot connected';
+    document.getElementById('statusLabel').textContent = 'info@bungalowny.com';
+    const emails = await Promise.all(data.messages.slice(0, 15).map(m => fetchDetail(m.id, token)));
+    renderList(emails.filter(Boolean));
+  } catch(e) {
+    listEl.innerHTML = `<div class="err" style="margin:12px">${e.message}</div>`;
+    document.getElementById('statusLabel').textContent = 'Error';
+  }
+}
+
+async function fetchDetail(id, token) {
+  try {
+    const res = await fetch(`/api/emails?path=${id}`, { headers: { Authorization: 'Bearer ' + token } });
+    const msg = await res.json();
+    const h = msg.payload.headers;
+    const from = h.find(x => x.name==='From')?.value || '';
+    const subject = h.find(x => x.name==='Subject')?.value || '(no subject)';
+    const date = h.find(x => x.name==='Date')?.value || '';
+    let body = extractBody(msg.payload);
+    const d = new Date(date);
+    const t = d.toLocaleDateString()===new Date().toLocaleDateString() ? d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : d.toLocaleDateString([],{month:'short',day:'numeric'});
+    const name = from.match(/^"?([^"<]+)"?\s*</)?.[1]?.trim() || from.replace(/<.*>/,'').trim();
+    return { id, from: name||from, fromFull: from, subject, time: t, body: body.trim().slice(0,3000) };
+  } catch(e) { return null; }
+}
+
+function extractBody(payload) {
+  let body = '';
+  if (payload.body?.data) return b64(payload.body.data);
+  if (payload.parts) {
+    for (const part of payload.parts) {
+      if (part.mimeType === 'text/plain' && part.body?.data) return b64(part.body.data);
+      if (part.parts) {
+        const sub = extractBody(part);
+        if (sub) return sub;
+      }
+    }
+    for (const part of payload.parts) {
+      if (part.mimeType === 'text/html' && part.body?.data) {
+        const d = document.createElement('div');
+        d.innerHTML = b64(part.body.data);
+        return d.innerText;
+      }
+    }
+  }
+  return body;
+}
+
+function b64(d) { try { return decodeURIComponent(escape(atob(d.replace(/-/g,'+').replace(/_/g,'/')))); } catch(e) { return atob(d.replace(/-/g,'+').replace(/_/g,'/')); } }
+
+function renderList(emails) {
+  const el = document.getElementById('emailList');
+  el.innerHTML = '';
+  emails.forEach((email, i) => {
+    const div = document.createElement('div');
+    div.className = 'email-item';
+    div.innerHTML = `
+      <div class="email-sender">${i<3?'<span class="unread-dot"></span>':''}${x(email.from)}</div>
+      <div class="email-subject">${x(email.subject)}</div>
+      <div class="email-preview">${x(email.body.slice(0,60))}...</div>`;
+    div.onclick = () => { document.querySelectorAll('.email-item').forEach(e=>e.classList.remove('active')); div.classList.add('active'); show(email); };
+    el.appendChild(div);
+  });
+}
+
+function x(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function parseThread(body) {
+  // Split email body into thread segments
+  const messages = [];
+  const lines = body.split('\n');
+  let current = { from: '', time: '', text: [], isLatest: true };
+  let inQuote = false;
+  let quoteBuffer = { from: '', time: '', text: [] };
+
+  // Find quoted blocks (lines starting with >)
+  const mainLines = [];
+  const quoteBlocks = [];
+  let quoteStart = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith('>') || line.startsWith('On ') && line.includes('wrote:')) {
+      if (quoteStart === -1) quoteStart = i;
+    } else if (quoteStart !== -1 && !line.trim()) {
+      // end of quote block
+      quoteBlocks.push(lines.slice(quoteStart, i).join('\n'));
+      quoteStart = -1;
+    }
+    if (quoteStart === -1) mainLines.push(line);
+  }
+
+  const mainText = mainLines.join('\n').trim();
+  return { main: mainText, hasThread: quoteBlocks.length > 0 };
+}
+
+function show(email) {
+  selected = email;
+  const { main, hasThread } = parseThread(email.body);
+
+  // Build thread display - show the clean latest message prominently
+  const cleanMain = main.replace(/\[Quoted text hidden\]/g, '').trim();
+  const isBungalow = email.fromFull.toLowerCase().includes('bungalow') || email.fromFull.toLowerCase().includes('info@');
+
+  document.getElementById('main').innerHTML = `
+    <div class="thread-label">Latest message</div>
+    <div class="thread-message">
+      <div class="thread-msg-header">
+        <div class="thread-msg-from ${isBungalow ? 'bungalow' : ''}">${x(email.from)}</div>
+        <div class="thread-msg-time">${x(email.time)}</div>
+      </div>
+      <div class="thread-msg-body latest">${x(cleanMain || email.body.slice(0, 800))}</div>
+    </div>
+    ${hasThread ? `<div class="thread-label" style="margin-top:4px">Thread context (used by AI)</div>
+    <div class="thread-message">
+      <div class="thread-msg-body" style="max-height:150px;font-size:11px;color:#5a4535">${x(email.body.slice(0,2000))}</div>
+    </div>` : ''}
+    <button class="gen-btn" id="genBtn" onclick="generate()">✦ Generate draft reply</button>
+    <div id="draftArea"></div>`;
+}
+
+async function generate() {
+  if (!selected) return;
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Generating...';
+  document.getElementById('draftArea').innerHTML = '';
+  try {
+    const res = await fetch('/api/draft', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 800,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: `Here is the full email thread. Draft a reply to the most recent message from the guest.\n\nSubject: ${selected.subject}\n\nFull thread:\n${selected.body}` }]
+      })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    const draft = data.content?.[0]?.text || 'Could not generate.';
+
+    if (draft.trim() === 'NO_REPLY_NEEDED') {
+      document.getElementById('draftArea').innerHTML = `
+        <div class="draft-card">
+          <div class="draft-top"><div class="draft-lbl">No reply needed</div></div>
+          <div class="draft-text" style="color:#6b5540;font-style:italic">This message appears to be a closing acknowledgment — no response is required.</div>
+        </div>`;
+    } else {
+      document.getElementById('draftArea').innerHTML = `
+        <div class="draft-card">
+          <div class="draft-top">
+            <div class="draft-lbl">Draft reply<span class="draft-badge">Review before sending</span></div>
+            <div class="btn-row">
+              <button class="sm-btn" onclick="copyDraft()">Copy</button>
+              <button class="sm-btn" onclick="generate()">Regenerate</button>
+            </div>
+          </div>
+          <div class="draft-text" id="draftContent" contenteditable="true">${x(draft)}</div>
+        </div>`;
+    }
+  } catch(e) {
+    document.getElementById('draftArea').innerHTML = `<div class="err">Error: ${e.message}</div>`;
+  }
+  btn.disabled = false; btn.innerHTML = '✦ Generate draft reply';
+}
+
+function copyDraft() {
+  const el = document.getElementById('draftContent');
+  if (!el) return;
+  navigator.clipboard.writeText(el.innerText).then(() => {
+    const t=document.getElementById('toast'); t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2000);
+  });
+}
+
+loadEmails();
+</script>
+</body>
+</html>
